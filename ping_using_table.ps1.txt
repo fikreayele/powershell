@@ -1,0 +1,139 @@
+﻿<#
+        #     $serverNames = Get-Content ("C:\Users\Fikre.Kassa\Downloads\ServerList.txt") 
+    
+           $serverNames = ('PROWATCH','P-DBCPTV1','P-DBCPTV2','P-DBDAM1-V','P-DBDAM2-V','P-DBDAM3-V','P-DBDAM4-V','P-DBLTR1','P-DBLTR2','P-DBLTR3','P-DBLTR4','P-DBUCAP3','P-DBUCAP4')
+
+
+            foreach($dbserver in $serverNames)
+            {
+            $dbserver, (
+              Test-Connection -ComputerName $dbserver -Count 1 -Quiet)
+
+               }
+
+#>
+
+cls
+ # Get-Date -Format 'yyyyMMddHHmmss' >C:\backups\TIMETXT.txt
+
+        $return=@()
+         $ddh = Get-Date -Format 'yyyy-mm-dd-HH-MM'
+
+        $servercon = New-Object System.Data.SqlClient.SqlConnection
+        $servercon.ConnectionString = "Data Source=P-DBAU1-V;Initial Catalog=master;Integrated Security=true;"
+        $servercmd = New-Object System.Data.SqlClient.SqlCommand
+        $servercmd.Connection = $servercon
+        #$servercmd.CommandText = "SELECT top 10 InstanceName FROM DBA.dbo.view_SQLServerInstances where Environment ='QA' AND State = 'Running'"
+        $servercmd.CommandText = "SELECT distinct  vw.[ServerName] FROM [DBA].[dbo].[view_SQLServerInstances] vw
+                                  where vw.Started ='True'	
+                                  AND vw.[StartMode] !='Disabled'
+                                  AND vw.State ='Running'
+                                  --and vw.Environment='PROD'
+                                  and vw.ServerName not  in  (
+                                                   SELECT   dc.[Decom_servers]
+                                                  FROM [DBAutil].[dbo].[Decommission_server_List] dc)
+                                                  Order by  vw.[ServerName];
+                               "
+        $servercmd.CommandTimeout = 0
+  
+      # Write-Warning $servercmd.CommandText
+
+        try
+        {
+           # Write-Warning $servercmd.CommandText
+       
+            $servercon.Open()
+       
+                $read = $servercmd.ExecuteReader()
+    
+            while ($read.Read())
+            {
+                $dbserver = $read["ServerName"]
+
+                 
+              Write-Host  $dbserver  # you can comment if you schedule this 
+              $ddh = Get-Date -Format 'yyyy-mm-dd HH:MM:ss'
+             
+               #$sqlcmd= "select @@servername as Servername,create_date, getdate() as checking_date from sys.databases where name = 'tempdb'"
+               #$sqlcmd ="select @@servername as Servername,crdate as create_date, getdate() as checking_date from master.dbo.sysdatabases where name = 'tempdb'"
+                #Invoke-Sqlcmd -ServerInstance $instance -Database tempdb -Query $sqlcmd -ErrorAction Stop -ConnectionTimeout 2
+
+
+
+                  try{
+                  $row = New-Object -TypeName Psobject -Property @{'InstanceName'=$dbserver; 'PingStatus' = $null;check_date=$null}
+                  #$check = Invoke-Sqlcmd -ServerInstance $dbserver -Database tempdb -Query $sqlcmd -ErrorAction Stop -ConnectionTimeout 0
+                  $check=Test-Connection -ComputerName $dbserver -Count 1 -Quiet
+                  $row.instancename =$dbserver
+                  $row.PingStatus = $check
+                  $row.check_date = $ddh
+
+                  }
+                  catch {
+                  # do nothing
+                  }    
+                  finally {
+                  #if(!$row.PingStatus){  #remove the if stetment if you want to know about all
+                  $return+= $row 
+                  #}
+                  }
+
+              }
+        }
+        catch
+        {
+            Write-Warning "Read-Servers Error " #>>"D:\Replication_MAP\Error_log_SQL_JOBNew.txt"
+             $ex = $_.Exception 
+           Write-Error "$ex.Message" 
+           continue 
+           # Write-Warning $_
+        }
+        finally
+        {
+        
+       # CLS
+        $dd = Get-Date -Format 'yyyymmddHHMMss'
+        #$dd
+
+        
+       $fileatt ="S:\MSSQL_SYS\MSSQL13.MSSQLSERVER\MSSQL\Log\connection$dd.html" 
+
+
+
+       $return| ConvertTo-HTML | Out-File $fileatt 
+       #$statusmessage= $return |Export-Clixml -Path $fileatt
+       $att = new-object Net.Mail.Attachment($fileatt)
+
+       # Send-MailMessage -SmtpServer "smtp.swbc.local" -To "fkassa@swbc.com" -From "statusofServert@swbc.com" -Subject "List of server allows connection" -Priority High -Body $att -BodyAsHtml
+        
+        
+            $fromaddress = "status@swbc.com" 
+            $toaddress = "fkassa@swbc.com"  # you can put your e-mail here 
+            #$bccaddress = "test1.test1@swbc.com" 
+            #$CCaddress = "test2.test2@swbc.com" 
+            $Subject = "Server Status " 
+            $body = get-content  $fileatt 
+            #attachment =  $fileatt 
+            $smtpserver = "smtp.swbc.local" 
+ 
+            #################################### 
+ 
+            $message = new-object System.Net.Mail.MailMessage 
+            $message.From = $fromaddress 
+            $message.To.Add($toaddress) 
+            #$message.CC.Add($CCaddress) 
+            #$message.Bcc.Add($bccaddress) 
+            $message.IsBodyHtml = $True 
+            $message.Subject = $Subject 
+            #$attach = new-object Net.Mail.Attachment($fileatt) 
+            #$message.Attachments.Add($attach) 
+            $message.body = $body 
+            $smtp = new-object Net.Mail.SmtpClient($smtpserver) 
+            $smtp.Send($message) 
+           # Get-Date -Format 'yyyyMMddHHmmss' >>C:\backups\TIMETXT.txt
+      #-----------------------------------------
+            $servercmd.Dispose()
+            $servercon.Dispose()
+
+        }
+        

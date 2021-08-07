@@ -1,0 +1,45 @@
+﻿import-module failoverclusters
+
+get-clusterresource | Format-List
+
+get-clusterresource D-UTILAG1
+
+get-clusterresource -cluster D-DBUTIL |Export-Clixml D:\RESTORE\dbutl.html
+
+
+$IN=get-clusterresource -cluster D-UTILAG1 | where-object {$_.ResourceType -like “File Share Witness”} #| get-clusterparameter 
+$IN |Get-Member
+
+get-clusterresource -cluster D-DBUTIL | where-object {$_.ResourceType -like "*SQL Server*"} | get-clusterparameter -cluster D-DBUTIL VirtualServerName,InstanceName
+
+get-clusterresource -cluster D-DBUTIL | where-object {$_.ResourceType -like “*SQL Server*”} | get-clusterparameter -cluster D-DBUTIL InstanceName
+
+
+get-clusterresource -cluster D-DBUTIL | where-object {$_.ResourceType -like “*SQL Server*”} | get-clusterparameter -cluster D-DBUTIL VirtualServerName,InstanceName | group-object ClusterObject | select-object @{Name = “SQLInstance”;Expression = {[string]::join(“\”,($_.Group | select-object -expandproperty Value))}}
+
+
+get-clusterresource -cluster D-DBUTIL -inputobject (get-clusterresource -cluster D-DBUTIL | where-object {$_.ResourceType -like “SQL Server Availability Group”}).OwnerGroup
+
+
+
+get-clusterresource -cluster D-DBUTIL | where-object {$_.ResourceType -like “*SQL Server*”} | foreach-object {($ownernode,$state) = ($_.OwnerNode,$_.State); $_ | get-clusterparameter -cluster sqlcluster -Name VirtualServerName,InstanceName | group-object ClusterObject | select @{Name=”SQLInstance”;Expression = {[string]::join(“\”,($_.Group | select-object -expandproperty Value))}},@{Name=”OwnerNode”;Expression={$ownernode}},@{Name=”State”;Expression={$state}}}
+
+
+import-module failoverclusters
+
+get-clusterresource
+get-clusterresource D-UTILAG1_D-AGUTIL1 |Set-ClusterParameter -name HostRecordTTL -Value 300
+Get-CauClusterRole  D-UTILAG1_D-AGUTIL1 | Set-ClusterParameter -Name RegisterAllProvidersIP -Value 0
+
+
+#change the Vote of the node
+
+Import-Module FailoverClusters  
+
+$node ="d-dbutil1”  
+(Get-ClusterNode $node).NodeWeight = 0  
+
+$cluster = (Get-ClusterNode $node).Cluster  
+$nodes = Get-ClusterNode -Cluster $cluster  
+
+$nodes | Format-Table -property NodeName, State, NodeWeight  

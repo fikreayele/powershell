@@ -1,0 +1,268 @@
+﻿
+#Set-ExecutionPolicy -ExecutionPolicy RemoteSigned
+
+#Import-Module sqlps -DisableNameChecking;
+#Get-Module
+
+
+function Out-DataTable 
+{ 
+    [CmdletBinding()] 
+    param(
+		[Parameter(Position=0, Mandatory=$true, ValueFromPipeline = $true)] [PSObject[]]$InputObject,
+		[string]$TypeFilter
+	)
+ 
+    Begin 
+    { 
+        $dt = new-object Data.DataTable   
+        $First = $true  
+		$count = 0
+    } 
+    Process 
+    { 
+        foreach ($object in $InputObject) 
+        { 
+			# 2012.10.11 msorens: filter to silence warnings, too.
+			if ($TypeFilter -and $object.GetType().Name -ne $TypeFilter) { continue }
+			
+			# 2012.10.11 msorens: warn about different types instead of throwing exception
+			$count++
+			if ($First) { $firstObjectType = $object.GetType() }
+			elseif ( $object.GetType() -ne $firstObjectType) {
+				Write-Warning ("Skipping {0}th object (type={1}, expected={2})" `
+				-f $count, $object.GetType(), $firstObjectType)
+				continue
+			}
+            $DR = $DT.NewRow()   
+            foreach($property in $object.PsObject.get_properties()) 
+            {   
+                if ($first) 
+                {   
+                    $Col =  new-object Data.DataColumn   
+                    $Col.ColumnName = $property.Name.ToString()   
+                    # 2012.10.11 msorens: Modified test to allow zero to pass; 
+					# otherwise, zero in the first record prevents data type assignment for the column. 
+					$valueExists = Get-Member -InputObject $property -Name value
+					if ($valueExists)
+                    { 
+						# 2012.10.11 msorens: Modified test for nulls to also include $null
+                        #if ($property.value -isnot [System.DBNull] -and $property.value -ne $null) {
+                        #    $Col.DataType = [System.Type]::GetType("$(Get-Type $property.TypeNameOfValue)") 
+                        # } 
+                    } 
+                    $DT.Columns.Add($Col) 
+                }
+                # 2012.10.11 msorens: Changed from .IsArray because, when present, was null;
+				# other times caused error (property 'IsArray' not found...).
+                if ($property.Value -is [array]) {
+                    $DR.Item($property.Name) = $property.value | ConvertTo-XML -AS String -NoTypeInformation -Depth 1 
+                }   
+                # 2012.10.11 msorens: Added support for XML fields
+                elseif ($property.Value -is [System.Xml.XmlElement]) {
+					$DR.Item($property.Name) = $property.Value.OuterXml
+				}
+                else { 
+                    $DR.Item($property.Name) = $property.value 
+                } 
+            }   
+            $DT.Rows.Add($DR)   
+            $First = $false 
+        } 
+    }  
+      
+    End 
+    { 
+        Write-Output @(,($dt)) 
+    } 
+ 
+} 
+###############Out-DataTable 
+
+
+function Write-DataTable 
+{ 
+    [CmdletBinding()] 
+    param( 
+    [Parameter(Position=0, Mandatory=$true)] [string]$ServerInstance, 
+    [Parameter(Position=1, Mandatory=$true)] [string]$Database, 
+    [Parameter(Position=2, Mandatory=$true)] [string]$TableName, 
+    [Parameter(Position=3, Mandatory=$true)] $Data, 
+    [Parameter(Position=4, Mandatory=$false)] [string]$Username, 
+    [Parameter(Position=5, Mandatory=$false)] [string]$Password, 
+    [Parameter(Position=6, Mandatory=$false)] [Int32]$BatchSize=50000, 
+    [Parameter(Position=7, Mandatory=$false)] [Int32]$QueryTimeout=0, 
+    [Parameter(Position=8, Mandatory=$false)] [Int32]$ConnectionTimeout=15 
+    ) 
+     
+    $conn=new-object System.Data.SqlClient.SQLConnection 
+ 
+    if ($Username) 
+    { $ConnectionString = "Server={0};Database={1};User ID={2};Password={3};Trusted_Connection=False;Connect Timeout={4}" -f $ServerInstance,$Database,$Username,$Password,$ConnectionTimeout } 
+    else 
+    { $ConnectionString = "Server={0};Database={1};Integrated Security=True;Connect Timeout={2}" -f $ServerInstance,$Database,$ConnectionTimeout } 
+ 
+    $conn.ConnectionString=$ConnectionString 
+ 
+    try 
+    { 
+        $conn.Open() 
+        $bulkCopy = new-object ("Data.SqlClient.SqlBulkCopy") $connectionString 
+        $bulkCopy.DestinationTableName = $tableName 
+        $bulkCopy.BatchSize = $BatchSize 
+        $bulkCopy.BulkCopyTimeout = $QueryTimeOut 
+        $bulkCopy.WriteToServer($Data) 
+        $conn.Close() 
+    } 
+    catch 
+    { 
+        $ex = $_.Exception 
+        Write-Error "$ex.Message" 
+        continue 
+    } 
+ 
+} 
+#Write-DataTable -----------------------
+
+
+function Get-lastBackup{
+Param( 
+    [Parameter(Mandatory = $true,position = 0)][String] $dbserver 
+) 
+[System.Reflection.Assembly]::LoadWithPartialName('Microsoft.SqlServer.SMO') | out-null 
+
+try{
+   $SQLobj = New-Object ('Microsoft.SqlServer.Management.Smo.Server')  $dbserver 
+    #$s = New-Object ('Microsoft.SqlServer.Management.Smo.Server')  $dbserver 
+    $dbs=$SQLobj.Databases 
+    foreach($db in $dbs) 
+        { 
+            $dd = Get-Date
+            #$dbbk=$db|Where-Object {$_.name -notlike '*tempdb*'}
+             $dbbk=$db | select parent,name,RecoveryModel,@{n='SizeMB'; e={($_.Size) -as [int]}},
+
+            @{n='SpaceAvailableMB'; e={($_.SpaceAvailable / 1KB) -as [int]}},  Status,ReadOnly,
+             
+            LastBackupDate,@{n='DaysFromFullBackup'; e={($dd -($_.LastBackupDate -as [datetime]) ).days}}, 
+            LastDifferentialBackupDate,@{n='DaysFromDiffBackup'; e={($dd -($_.LastDifferentialBackupDate -as [datetime]) ).days}},
+            LastLogBackupDate,@{n='DaysFromLogsBackup'; e={($dd -($_.LastLogBackupDate -as [datetime]) ).days}}
+        
+
+        if (!($dbbk.name -like '*tempdb*')){
+ 
+        $objectProperties = [ordered]@{
+        'Sqlserver' = $dbserver;
+        'Cluster_Name' = $SQLobj.ClusterName;
+        'parent'                      	=	$dbbk.parent;                 
+        'name'	=	$dbbk.name;
+        'RecoveryModel'	=	$dbbk.RecoveryModel;
+        'SizeMB'	=	$dbbk.SizeMB;
+        'SpaceAvailableMB'	=	$dbbk.SpaceAvailableMB;
+        'Status'	=	$dbbk.Status;
+        'ReadOnly'	=	$dbbk.ReadOnly;;
+        'LastBackupDate'	=	$dbbk.LastBackupDate
+        'DaysFromFullBackup'	=	$dbbk.DaysFromFullBackup;
+        'LastDifferentialBackupDate'	=	$dbbk.LastDifferentialBackupDate;
+        'DaysFromDiffBackup'	=	$dbbk.DaysFromDiffBackup;
+        'LastLogBackupDate'	=	$dbbk.LastLogBackupDate;
+        'DaysFromLogsBackup'	=	$dbbk.DaysFromLogsBackup
+
+        
+  }
+  
+ $dbbkobj= New-Object psobject -Property $objectProperties
+  
+
+
+
+
+
+
+        $dt= $dbbkobj |Out-DataTable
+
+           Write-Warning "write to -database   $dbserver   $db"
+         # $dt
+          if ( $dt) {
+              If($dt.name){
+               
+               Write-DataTable -ServerInstance "IT-MG72891" –Database DBAutil –TableName "Backups_Last_Full_Diff_Tlog4" -Data  $dt
+            }
+            }
+          } #if
+          } #foreach 
+          }  #try
+          catch
+          {
+           Write-Warning "Errore: write to -database or connect to   $dbserver"
+                     $ex = $_.Exception 
+                  Write-Error "$ex.Message" 
+                  continue 
+          }
+        
+        }
+
+
+#end of lastbackupdate--------------------- 
+
+
+cls
+
+Get-Date >> D:\Replication_MAP\last_full_diff_Tlog.txt
+
+
+
+
+        $servercon = New-Object System.Data.SqlClient.SqlConnection
+        $servercon.ConnectionString = "Data Source=P-DBAU1-V;Initial Catalog=master;Integrated Security=true;"
+        $servercmd = New-Object System.Data.SqlClient.SqlCommand
+        $servercmd.Connection = $servercon
+        $servercmd.CommandText = "SELECT distinct
+                                  [InstanceName]
+                                    FROM [DBA].[dbo].[view_SQLServerInstances]
+                              where Started ='True'	
+                              AND [StartMode] !='Disabled'
+                              AND State ='Running'
+                              and Environment='PROD'
+                              and  Status='OK'
+                              and InstanceName not in ( 'P-DBDM1\DM_SQL2008',
+                                                        'P-DBDM1\DM_SQL2008R2',
+                                                        'P-DBDM1\DM_SQL2012'
+                                                        ) ;
+                        "
+        #$servercmd.CommandText = "SELECT InstanceName FROM DBA.dbo.view_SQLServerInstances where Environment = 'Dev' AND Environment !='QA' AND State = 'Running'"
+        $servercmd.CommandTimeout = 0
+        
+      # Write-Warning $servercmd.CommandText
+        try
+        {
+            $servercon.Open()
+       
+                $read = $servercmd.ExecuteReader()
+    
+            while ($read.Read())
+            {
+                $dbserver = $read["InstanceName"]
+
+             Write-Host  " before call get-lastbackup for  $dbserver"
+
+              get-lastBackup -dbserver $dbserver
+
+              }
+        }
+        catch
+        {
+            Write-Warning "Read-Servers Error $dbserver " 
+             $ex = $_.Exception 
+          Write-Error "$ex.Message" 
+          continue 
+           # Write-Warning $_
+        }
+        finally
+        {
+            $servercmd.Dispose()
+            $servercon.Dispose()
+        }
+        
+
+
+Get-Date >> D:\Replication_MAP\last_full_diff_Tlog.txt
