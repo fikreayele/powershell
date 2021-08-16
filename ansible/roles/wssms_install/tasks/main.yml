@@ -1,0 +1,24 @@
+---
+- name: "create folder"
+  win_file:
+    path: "{{ dest_folder }}"
+    state: directory
+
+
+- name: "copy SSMS file to the dest folder"
+  win_copy:
+    src: "{{ source_folder }}\\{{ sql_managment_studio }}"
+    dest: "{{ dest_folder }}\\{{ sql_managment_studio }}"
+    remote_src: yes
+
+- name: Installs SSMS
+  win_package:
+    path: "{{ dest_folder }}\\{{ sql_managment_studio }}"
+    arguments: '/install /quiet /norestart /log log.txt'
+    product_id: "{{ productid }}"
+  register: ssms_installation
+
+- name: Reboot when mssql_installation feature requires it
+  ansible.windows.win_reboot:
+  when: ssms_installation.reboot_required
+    

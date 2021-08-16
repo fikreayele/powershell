@@ -1,0 +1,21 @@
+---
+# tasks file for ./roles/wrestart_if_pending_reboot
+- name: "create folder"
+  win_file:
+    path: "{{ dest_folder }}"
+    state: directory
+
+- name: "copy PendingRebootStatus file to the dest folder"
+  win_copy:
+    src: "{{ source_folder }}\\{{ check_pending_reboot_file }}"
+    dest: "{{ dest_folder }}\\{{  check_pending_reboot_file }}"
+    remote_src: yes
+
+- name: check for pending reboot
+  win_shell: "{{ dest_folder }}\\{{ check_pending_reboot_file }}"
+  register: pending_reboot
+
+- name: "Restart if there is pending reboot"
+  ansible.windows.win_reboot:
+  when: pending_reboot.stdout_lines[0] != 'False'
+  notify: reboot windows

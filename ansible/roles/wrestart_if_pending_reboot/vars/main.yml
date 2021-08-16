@@ -1,0 +1,7 @@
+---
+# vars file for ./roles/wrestart_if_pending_reboot
+source_folder: "\\\\WIN9-01\\source_folder\\SQL_2019"
+dest_folder: "c:\\temp\\stage"
+check_pending_reboot_file: "pendingrebootstatus.ps1"
+productid: "22222-00000-00000-00000-00000"
+sql_instanceName: "DEMO2"

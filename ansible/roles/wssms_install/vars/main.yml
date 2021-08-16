@@ -1,0 +1,6 @@
+---
+# vars file for wssms_install
+source_folder: "\\\\WIN9-01\\source_folder\\SQL_2019"
+dest_folder: "c:\\temp\\stage"
+sql_managment_studio: "SSMS-Setup-ENU.exe"
+productid: "22222-00000-00000-00000-00000"

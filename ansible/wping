@@ -1,0 +1,19 @@
+win9-02 ansible_host=win9-02.LAB01.LOCAL
+win9-03 ansible_host=win9-03.LAB01.LOCAL
+win9-01 ansible_host=win9-01.LAB01.LOCAL
+
+
+[win9]
+win9-02
+win9-03
+win9-01
+
+
+
+[win9:vars]
+ansible_user='dcadmin@lab01.local'
+ansible_password='password@123'
+ansible_connection='winrm'
+ansible_port=5986
+ansible_winrm_transport=credssp
+ansible_winrm_server_cert_validation=ignore

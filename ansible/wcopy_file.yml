@@ -1,0 +1,12 @@
+---
+- name: copy file from local to the windows server
+  hosts: win9
+  tasks:
+    - name: "create folder"
+      win_file:
+        path: "c:\\dist_folder"
+        state: directory
+    - name: "copy file"
+      win_copy:
+        src: "/home/osboxes/ansible/file1.txt"
+        dest: "c:\\dist_folder\\file1.txt"

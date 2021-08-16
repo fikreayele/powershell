@@ -1,0 +1,15 @@
+---
+- name: copy file from local to the windows server
+  hosts: win9
+  vars:
+    src_file: "file2.txt"
+    dest_folder: "c:\\dist_folder2"
+  tasks:
+    - name: "create folder"
+      win_file:
+        path: "{{ dest_folder }}"
+        state: directory
+    - name: "copy file"
+      win_copy:
+        src: "{{ src_file }}"
+        dest: "{{ dest_folder }}\\file2.txt"

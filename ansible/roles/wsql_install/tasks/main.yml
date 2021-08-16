@@ -1,0 +1,62 @@
+---
+- name: "create folder"
+  win_file:
+    path: "{{ dest_folder }}"
+    state: directory
+
+- name: "create MSSQL_DATA folder"
+  win_file:
+    path: "{{ sql_user_db_dir }}"
+    state: directory
+
+- name: "create MSSQL_LOGs folder"
+  win_file:
+    path: "{{ sql_user_db_log_dir }}"
+    state: directory
+
+- name: "create MSSQL_TEMPDB folder"
+  win_file:
+    path: "{{ sql_tempdb_dir }}"
+    state: directory   
+
+- name: "copy ISO file to the dest folder"
+  win_copy:
+    src: "{{ source_folder }}\\{{ sql_iso_file }}"
+    dest: "{{ dest_folder }}\\{{ sql_iso_file }}"
+    remote_src: yes
+
+- name: "copy ConfigurationFile.ini file to the dest folder"
+  win_copy:
+    src: "{{ source_folder }}\\{{ sql_config_file }}"
+    dest: "{{ dest_folder }}\\{{ sql_config_file }}"
+    remote_src: yes
+
+- name: "copy SSMS file to the dest folder"
+  win_copy:
+    src: "{{ source_folder }}\\{{ sql_managment_studio }}"
+    dest: "{{ dest_folder }}\\{{ sql_managment_studio }}"
+    remote_src: yes
+
+- name: Ensure an ISO is mounted
+  community.windows.win_disk_image:
+    image_path: "{{ dest_folder }}\\{{ sql_iso_file }}"
+    state: present
+  register: disk_image_out
+
+  
+
+- name: Run installer from mounted ISO
+  win_package:
+    path: '{{ disk_image_out.mount_paths[0] }}\\setup.exe'
+    arguments:  '/AGTSVCPASSWORD="{{ sql_agent_account_pass }}" /SQLSVCPASSWORD="{{ sql_service_account_pass }}"  /ConfigurationFile="{{ dest_folder }}\\{{ sql_config_file }}" /IAcceptSQLServerLicenseTerms'
+    product_id: "{{ productid }}"
+  register: mssql_installation
+    
+- name: Unmount ISO
+  community.windows.win_disk_image:
+    image_path: "{{ dest_folder }}\\{{ sql_iso_file }}"
+    state: absent
+
+- name: Reboot when SQL server requires it
+  ansible.windows.win_reboot:
+  when: mssql_installation.reboot_required

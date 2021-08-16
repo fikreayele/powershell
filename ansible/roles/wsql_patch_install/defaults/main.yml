@@ -1,0 +1,5 @@
+---
+# defaults file for ./roles/wsql_patch_install
+
+windows_reboot_allowed: true
+windows_pending_reboot_fail: false

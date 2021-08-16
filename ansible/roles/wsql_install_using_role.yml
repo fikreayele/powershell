@@ -1,0 +1,4 @@
+---
+- hosts: win9
+  roles:
+    - wsql_install

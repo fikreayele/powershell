@@ -1,0 +1,9 @@
+---
+- hosts: linux
+  become: yes
+
+  tasks:
+    - name: "Ensure Apatch is install"
+      apt:
+        name: apache2
+        state: latest

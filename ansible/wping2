@@ -1,0 +1,42 @@
+win9-02 ansible_host=win9-02.LAB01.LOCAL
+win9-03 ansible_host=win9-03.LAB01.LOCAL
+#win9-01 ansible_host=win9-01.LAB01.LOCAL
+
+uweb-01 ansible_host=uweb-01.LAB01.LOCAL
+#uweb-01 ansible_host=192.168.1.185
+
+[web]
+win9-03
+
+[db]
+win9-02
+
+
+[win9:children]
+web 
+db
+#win9-01
+
+
+
+[win9:vars]
+ansible_user='dcadmin@lab01.local'
+ansible_password='password@123'
+ansible_connection='winrm'
+ansible_port=5986
+ansible_winrm_transport=credssp
+ansible_winrm_server_cert_validation=ignore
+
+[lxweb]
+uweb-01
+
+
+[linux:children]
+lxweb
+
+
+[linux:vars]
+ansible_user="uansible"
+ansible_private_key_file=/home/uansible/.ssh/id_rsa
+ansible_connection=ssh
+ansible_become_password="password@123"

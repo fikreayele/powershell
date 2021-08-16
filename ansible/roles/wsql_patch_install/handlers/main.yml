@@ -1,0 +1,7 @@
+---
+# handlers file for ./roles/wsql_patch_install
+- name: reboot windows
+  win_reboot:
+    reboot_timeout: 9000
+    post_reboot_delay: 20
+  when: windows_reboot_allowed

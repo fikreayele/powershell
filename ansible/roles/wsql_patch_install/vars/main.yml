@@ -1,0 +1,7 @@
+---
+# vars file for ./roles/wsql_patch_install
+source_folder: "\\\\WIN9-01\\source_folder\\SQL_2019"
+dest_folder: "c:\\temp\\stage"
+sql_server_cu: "cu12_SQLServer2019-KB5004524-x64.exe"
+productid: "22222-00000-00000-00000-00000"
+sql_instanceName: "DEMO2"

@@ -1,0 +1,23 @@
+---
+# tasks file for ./roles/wsql_patch_install
+- name: "create folder"
+  win_file:
+    path: "{{ dest_folder }}"
+    state: directory
+
+- name: "copy patch file to the dest folder"
+  win_copy:
+    src: "{{ source_folder }}\\{{ sql_server_cu }}"
+    dest: "{{ dest_folder }}\\{{ sql_server_cu }}"
+    remote_src: yes
+
+- name: Installs SQL Server patch
+  win_package:
+    path: "{{ dest_folder }}\\{{ sql_server_cu }}"
+    arguments: '/Action=Patch /quiet /IAcceptSQLServerLicenseTerms /InstanceName="{{ sql_instanceName }}" '
+    product_id: "{{ productid }}"
+  register: patch_installation
+
+- name: Reboot when mssql_installation feature requires it
+  ansible.windows.win_reboot:
+  when: patch_installation.reboot_required

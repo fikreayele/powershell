@@ -1,0 +1,4 @@
+---
+demo_site_path: "c:\\inetpub\\wwwroot\\demosite"
+default_index_file2: "index2.html"
+default_index_file3: "index3.html"

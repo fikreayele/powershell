@@ -1,0 +1,18 @@
+---
+source_folder: "\\\\WIN9-01\\source_folder\\SQL_2019"
+sql_iso_file: "SQLServer2019-x64-ENU-Dev.iso"
+dest_folder: "c:\\temp\\stage"
+sql_config_file: "ConfigurationFile.ini"
+sql_managment_studio: "SSMS-Setup-ENU.exe"
+productid: "22222-00000-00000-00000-00000"
+
+sql_service_account: "svc_mssqle"
+sql_service_account_pass: "password@123"
+sql_agent_account: "svc_mssqla"
+sql_agent_account_pass: "password@123"
+
+sql_user_db_dir: "C:\\MSSQL_DATA"
+sql_user_db_log_dir: "C:\\MSSQL_LOGS"
+sql_tempdb_dir: "C:\\MSSQL_TEMPDB"
+
+
