@@ -1,0 +1,669 @@
+---
+
+roles/wrestart_if_pending_reboot/
+├── defaults
+│   └── main.yml
+├── files
+├── handlers
+│   └── main.yml
+├── meta
+│   └── main.yml
+├── README.md
+├── tasks
+│   └── main.yml
+├── templates
+├── tests
+│   ├── inventory
+│   └── test.yml
+└── vars
+    └── main.yml
+
+-- defaults
+
+---
+# defaults file for ./roles/wrestart_if_pending_reboot
+windows_reboot_allowed: true
+windows_pending_reboot_fail: false
+
+-- handlers
+
+---
+# handlers file for ./roles/wrestart_if_pending_reboot
+- name: reboot windows
+  win_reboot:
+    reboot_timeout: 9000
+    post_reboot_delay: 20
+  when: windows_reboot_allowed
+  
+ 
+ --tasks
+ 
+ 
+ ---
+# tasks file for ./roles/wrestart_if_pending_reboot
+- name: "create folder"
+  win_file:
+    path: "{{ dest_folder }}"
+    state: directory
+
+- name: "copy PendingRebootStatus file to the dest folder"
+  win_copy:
+    src: "{{ source_folder }}\\{{ check_pending_reboot_file }}"
+    dest: "{{ dest_folder }}\\{{  check_pending_reboot_file }}"
+    remote_src: yes
+
+- name: check for pending reboot
+  win_shell: "{{ dest_folder }}\\{{ check_pending_reboot_file }}"
+  register: pending_reboot
+
+- name: "Restart if there is pending reboot"
+  ansible.windows.win_reboot:
+  when: pending_reboot.stdout_lines[0] != 'False'
+  notify: reboot windows
+
+
+---vars
+
+---
+# vars file for ./roles/wrestart_if_pending_reboot
+source_folder: "\\\\WIN9-01\\source_folder\\SQL_2019"
+dest_folder: "c:\\temp\\stage"
+check_pending_reboot_file: "pendingrebootstatus.ps1"
+productid: "22222-00000-00000-00000-00000"
+sql_instanceName: "DEMO2"
+
+-----play book
+
+
+win_restart_if_pening_reboot_using_role.yml
+
+
+---
+- hosts: web
+  roles:
+    - wrestart_if_pending_reboot
+
+
+
+----------------end pending reboot-----------------------------
+
+
+roles/wsql_install
+├── defaults
+│   └── main.yml
+├── files
+├── handlers
+│   └── main.yml
+├── meta
+│   └── main.yml
+├── README.md
+├── tasks
+│   └── main.yml
+├── templates
+├── tests
+│   ├── inventory
+│   └── test.yml
+└── vars
+    └── main.yml
+	
+	
+-- tasks
+
+---
+- name: "create folder"
+  win_file:
+    path: "{{ dest_folder }}"
+    state: directory
+
+- name: "create MSSQL_DATA folder"
+  win_file:
+    path: "{{ sql_user_db_dir }}"
+    state: directory
+
+- name: "create MSSQL_LOGs folder"
+  win_file:
+    path: "{{ sql_user_db_log_dir }}"
+    state: directory
+
+- name: "create MSSQL_TEMPDB folder"
+  win_file:
+    path: "{{ sql_tempdb_dir }}"
+    state: directory   
+
+- name: "copy ISO file to the dest folder"
+  win_copy:
+    src: "{{ source_folder }}\\{{ sql_iso_file }}"
+    dest: "{{ dest_folder }}\\{{ sql_iso_file }}"
+    remote_src: yes
+
+- name: "copy ConfigurationFile.ini file to the dest folder"
+  win_copy:
+    src: "{{ source_folder }}\\{{ sql_config_file }}"
+    dest: "{{ dest_folder }}\\{{ sql_config_file }}"
+    remote_src: yes
+
+- name: "copy SSMS file to the dest folder"
+  win_copy:
+    src: "{{ source_folder }}\\{{ sql_managment_studio }}"
+    dest: "{{ dest_folder }}\\{{ sql_managment_studio }}"
+    remote_src: yes
+
+- name: Ensure an ISO is mounted
+  community.windows.win_disk_image:
+    image_path: "{{ dest_folder }}\\{{ sql_iso_file }}"
+    state: present
+  register: disk_image_out
+
+  
+
+- name: Run installer from mounted ISO
+  win_package:
+    path: '{{ disk_image_out.mount_paths[0] }}\\setup.exe'
+    arguments:  '/AGTSVCPASSWORD="{{ sql_agent_account_pass }}" /SQLSVCPASSWORD="{{ sql_service_account_pass }}"  /ConfigurationFile="{{ dest_folder }}\\{{ sql_config_file }}" /IAcceptSQLServerLicenseTerms'
+    product_id: "{{ productid }}"
+  register: mssql_installation
+    
+- name: Unmount ISO
+  community.windows.win_disk_image:
+    image_path: "{{ dest_folder }}\\{{ sql_iso_file }}"
+    state: absent
+
+- name: Reboot when SQL server requires it
+  ansible.windows.win_reboot:
+  when: mssql_installation.reboot_required
+  
+ ---vars
+ 
+ ---
+source_folder: "\\\\WIN9-01\\source_folder\\SQL_2019"
+sql_iso_file: "SQLServer2019-x64-ENU-Dev.iso"
+dest_folder: "c:\\temp\\stage"
+sql_config_file: "ConfigurationFile.ini"
+sql_managment_studio: "SSMS-Setup-ENU.exe"
+productid: "22222-00000-00000-00000-00000"
+
+sql_service_account: "svc_mssqle"
+sql_service_account_pass: "password@123"
+sql_agent_account: "svc_mssqla"
+sql_agent_account_pass: "password@123"
+
+sql_user_db_dir: "C:\\MSSQL_DATA"
+sql_user_db_log_dir: "C:\\MSSQL_LOGS"
+sql_tempdb_dir: "C:\\MSSQL_TEMPDB"
+
+----play book--------------
+
+wsql_install_using_role.yml
+
+---
+- hosts: win9
+  roles:
+    - wsql_install
+
+
+
+---------------------end installation----------------------------------------
+
+
+roles/wsql_patch_install/
+├── defaults
+│   └── main.yml
+├── files
+│   └── pendingrebootstatus.ps1
+├── handlers
+│   └── main.yml
+├── meta
+│   └── main.yml
+├── README.md
+├── tasks
+│   └── main.yml
+├── templates
+├── tests
+│   ├── inventory
+│   └── test.yml
+└── vars
+    └── main.yml
+
+----defaults
+
+---
+# defaults file for ./roles/wsql_patch_install
+
+windows_reboot_allowed: true
+windows_pending_reboot_fail: false
+
+--handlers
+
+---
+# handlers file for ./roles/wsql_patch_install
+- name: reboot windows
+  win_reboot:
+    reboot_timeout: 9000
+    post_reboot_delay: 20
+  when: windows_reboot_allowed
+  
+--- tasks
+
+---
+# tasks file for ./roles/wsql_patch_install
+- name: "create folder"
+  win_file:
+    path: "{{ dest_folder }}"
+    state: directory
+
+- name: "copy patch file to the dest folder"
+  win_copy:
+    src: "{{ source_folder }}\\{{ sql_server_cu }}"
+    dest: "{{ dest_folder }}\\{{ sql_server_cu }}"
+    remote_src: yes
+
+- name: Installs SQL Server patch
+  win_package:
+    path: "{{ dest_folder }}\\{{ sql_server_cu }}"
+    arguments: '/Action=Patch /quiet /IAcceptSQLServerLicenseTerms /InstanceName="{{ sql_instanceName }}" '
+    product_id: "{{ productid }}"
+  register: patch_installation
+
+- name: Reboot when mssql_installation feature requires it
+  ansible.windows.win_reboot:
+  when: patch_installation.reboot_required
+  
+ ---------vars
+
+---
+# vars file for ./roles/wsql_patch_install
+source_folder: "\\\\WIN9-01\\source_folder\\SQL_2019"
+dest_folder: "c:\\temp\\stage"
+sql_server_cu: "cu12_SQLServer2019-KB5004524-x64.exe"
+productid: "22222-00000-00000-00000-00000"
+sql_instanceName: "DEMO2"
+
+
+-----play book--------------
+--- wsql_patch_install_using_role.yml
+
+
+---
+- hosts: web
+  roles:
+    - wrestart_if_pending_reboot
+    - wsql_patch_install
+
+
+
+
+
+-------------------end of Patch--------------------------- 
+
+
+roles/wssms_install/
+├── defaults
+│   └── main.yml
+├── files
+├── handlers
+│   └── main.yml
+├── meta
+│   └── main.yml
+├── README.md
+├── tasks
+│   └── main.yml
+├── templates
+├── tests
+│   ├── inventory
+│   └── test.yml
+└── vars
+    └── main.yml
+
+
+---tasks
+
+---
+- name: "create folder"
+  win_file:
+    path: "{{ dest_folder }}"
+    state: directory
+
+
+- name: "copy SSMS file to the dest folder"
+  win_copy:
+    src: "{{ source_folder }}\\{{ sql_managment_studio }}"
+    dest: "{{ dest_folder }}\\{{ sql_managment_studio }}"
+    remote_src: yes
+
+- name: Installs SSMS
+  win_package:
+    path: "{{ dest_folder }}\\{{ sql_managment_studio }}"
+    arguments: '/install /quiet /norestart /log log.txt'
+    product_id: "{{ productid }}"
+  register: ssms_installation
+
+- name: Reboot when mssql_installation feature requires it
+  ansible.windows.win_reboot:
+  when: ssms_installation.reboot_required
+  
+  ---vars
+  
+ ---
+# vars file for wssms_install
+source_folder: "\\\\WIN9-01\\source_folder\\SQL_2019"
+dest_folder: "c:\\temp\\stage"
+sql_managment_studio: "SSMS-Setup-ENU.exe"
+productid: "22222-00000-00000-00000-00000"
+
+---------------------end SSMS------------------
+--wssms_install_using_role.yml
+
+---
+- hosts: win9
+  roles:
+    - wssms_install
+
+
+
+
+
+
+
+--------------------inventory ------------
+
+
+win9-02 ansible_host=win9-02.LAB01.LOCAL
+win9-03 ansible_host=win9-03.LAB01.LOCAL
+#win9-01 ansible_host=win9-01.LAB01.LOCAL
+
+uweb-01 ansible_host=uweb-01.LAB01.LOCAL
+#uweb-01 ansible_host=192.168.1.185
+
+[web]
+win9-03
+
+[db]
+win9-02
+
+
+[win9:children]
+web 
+db
+#win9-01
+
+
+
+[win9:vars]
+ansible_user='dcadmin@lab01.local'
+ansible_password='password@123'
+ansible_connection='winrm'
+ansible_port=5986
+ansible_winrm_transport=credssp
+ansible_winrm_server_cert_validation=ignore
+
+[lxweb]
+uweb-01
+
+
+[linux:children]
+lxweb
+
+
+[linux:vars]
+ansible_user="uansible"
+ansible_private_key_file=/home/uansible/.ssh/id_rsa
+ansible_connection=ssh
+ansible_become_password="password@123"
+
+----------end of Inventory--------------------------
+
+;SQL Server 2019 Configuration File
+[OPTIONS]
+
+; By specifying this parameter and accepting Microsoft Python Open and Microsoft Python Server terms, you acknowledge that you have read and understood the terms of use. 
+
+IACCEPTPYTHONLICENSETERMS="False"
+
+; Specifies a Setup work flow, like INSTALL, UNINSTALL, or UPGRADE. This is a required parameter. 
+
+ACTION="Install"
+
+; By specifying this parameter and accepting Microsoft R Open and Microsoft R Server terms, you acknowledge that you have read and understood the terms of use. 
+
+IACCEPTROPENLICENSETERMS="False"
+
+; Specifies that SQL Server Setup should not display the privacy statement when ran from the command line. 
+
+SUPPRESSPRIVACYSTATEMENTNOTICE="False"
+
+; Use the /ENU parameter to install the English version of SQL Server on your localized Windows operating system. 
+
+ENU="True"
+
+; Setup will not display any user interface. 
+
+; fikre change QUIET from False to true
+QUIET="True"
+
+; Setup will display progress only, without any user interaction. 
+
+QUIETSIMPLE="False"
+
+; Parameter that controls the user interface behavior. Valid values are Normal for the full UI,AutoAdvance for a simplied UI, and EnableUIOnServerCore for bypassing Server Core setup GUI block. 
+
+; Fikre add a comment :Note that the UIMode setting cannot be used with the /Q or /QS parameters.
+;UIMODE="Normal"
+
+; Specify whether SQL Server Setup should discover and include product updates. The valid values are True and False or 1 and 0. By default SQL Server Setup will include updates that are found. 
+;fikre change from true to false
+UpdateEnabled="False"
+
+; If this parameter is provided, then this computer will use Microsoft Update to check for updates. 
+
+USEMICROSOFTUPDATE="False"
+
+; Specifies that SQL Server Setup should not display the paid edition notice when ran from the command line. 
+
+SUPPRESSPAIDEDITIONNOTICE="False"
+
+; Specify the location where SQL Server Setup will obtain product updates. The valid values are "MU" to search Microsoft Update, a valid folder path, a relative path such as .\MyUpdates or a UNC share. By default SQL Server Setup will search Microsoft Update or a Windows Update service through the Window Server Update Services. 
+
+;fikre comment the following line 
+;UpdateSource="MU"
+
+; Specifies features to install, uninstall, or upgrade. The list of top-level features include SQL, AS, IS, MDS, and Tools. The SQL feature will install the Database Engine, Replication, Full-Text, and Data Quality Services (DQS) server. The Tools feature will install shared components. 
+
+FEATURES=SQLENGINE,REPLICATION,CONN,BC,SDK,SNAC_SDK
+
+; Displays the command line parameters usage. 
+
+HELP="False"
+
+; Specifies that the detailed Setup log should be piped to the console. 
+
+INDICATEPROGRESS="False"
+
+; Specifies that Setup should install into WOW64. This command line argument is not supported on an IA64 or a 32-bit system. 
+
+X86="False"
+
+; Specify a default or named instance. MSSQLSERVER is the default instance for non-Express editions and SQLExpress for Express editions. This parameter is required when installing the SQL Server Database Engine (SQL), or Analysis Services (AS). 
+
+INSTANCENAME="DEMO2"
+
+; Specify the root installation directory for shared components.  This directory remains unchanged after shared components are already installed. 
+
+INSTALLSHAREDDIR="C:\Program Files\Microsoft SQL Server"
+
+; Specify the root installation directory for the WOW64 shared components.  This directory remains unchanged after WOW64 shared components are already installed. 
+
+INSTALLSHAREDWOWDIR="C:\Program Files (x86)\Microsoft SQL Server"
+
+; Specify the Instance ID for the SQL Server features you have specified. SQL Server directory structure, registry structure, and service names will incorporate the instance ID of the SQL Server instance. 
+
+INSTANCEID="DEMO2"
+
+; Account for SQL Server CEIP service: Domain\User or system account. 
+
+SQLTELSVCACCT="NT Service\SQLTELEMETRY$DEMO2"
+
+; Startup type for the SQL Server CEIP service. 
+
+SQLTELSVCSTARTUPTYPE="Automatic"
+
+; Specify the installation directory. 
+
+INSTANCEDIR="C:\Program Files\Microsoft SQL Server"
+
+; Agent account name 
+
+AGTSVCACCOUNT="LAB01\svc_mssqla"
+
+; Auto-start service after installation.  
+
+AGTSVCSTARTUPTYPE="Automatic"
+
+; CM brick TCP communication port 
+
+COMMFABRICPORT="0"
+
+; How matrix will use private networks 
+
+COMMFABRICNETWORKLEVEL="0"
+
+; How inter brick communication will be protected 
+
+COMMFABRICENCRYPTION="0"
+
+; TCP port used by the CM brick 
+
+MATRIXCMBRICKCOMMPORT="0"
+
+; Startup type for the SQL Server service. 
+
+SQLSVCSTARTUPTYPE="Automatic"
+
+; Level to enable FILESTREAM feature at (0, 1, 2 or 3). 
+
+FILESTREAMLEVEL="0"
+
+; The max degree of parallelism (MAXDOP) server configuration option. 
+
+SQLMAXDOP="1"
+
+; Set to "1" to enable RANU for SQL Server Express. 
+
+ENABLERANU="False"
+
+; Specifies a Windows collation or an SQL collation to use for the Database Engine. 
+
+SQLCOLLATION="SQL_Latin1_General_CP1_CI_AS"
+
+; Account for SQL Server service: Domain\User or system account. 
+
+SQLSVCACCOUNT="LAB01\svc_mssqle"
+
+; Set to "True" to enable instant file initialization for SQL Server service. If enabled, Setup will grant Perform Volume Maintenance Task privilege to the Database Engine Service SID. This may lead to information disclosure as it could allow deleted content to be accessed by an unauthorized principal. 
+
+SQLSVCINSTANTFILEINIT="True"
+
+; Windows account(s) to provision as SQL Server system administrators. 
+
+SQLSYSADMINACCOUNTS="LAB01\dcadmin" "LAB01\svc_ansible"
+
+; The number of Database Engine TempDB files. 
+
+SQLTEMPDBFILECOUNT="1"
+
+; Specifies the initial size of a Database Engine TempDB data file in MB. 
+
+SQLTEMPDBFILESIZE="512"
+
+; Specifies the automatic growth increment of each Database Engine TempDB data file in MB. 
+
+SQLTEMPDBFILEGROWTH="64"
+
+; Specifies the initial size of the Database Engine TempDB log file in MB. 
+
+SQLTEMPDBLOGFILESIZE="100"
+
+; Specifies the automatic growth increment of the Database Engine TempDB log file in MB. 
+
+SQLTEMPDBLOGFILEGROWTH="64"
+
+; Default directory for the Database Engine user databases. 
+
+SQLUSERDBDIR="C:\MSSQL_DATA"
+
+; Default directory for the Database Engine user database logs. 
+
+SQLUSERDBLOGDIR="C:\MSSQL_LOGS"
+
+; Directories for Database Engine TempDB files. 
+
+SQLTEMPDBDIR="C:\MSSQL_TEMPDB"
+
+; Provision current user as a Database Engine system administrator for SQL Server 2019 Express. 
+
+ADDCURRENTUSERASSQLADMIN="False"
+
+; Specify 0 to disable or 1 to enable the TCP/IP protocol. 
+
+;fikre change from 0 to 1
+TCPENABLED="1"
+
+; Specify 0 to disable or 1 to enable the Named Pipes protocol. 
+
+;fikre change from 0 to 1
+NPENABLED="1"
+
+; Startup type for Browser Service. 
+
+BROWSERSVCSTARTUPTYPE="Automatic"
+
+; Use SQLMAXMEMORY to minimize the risk of the OS experiencing detrimental memory pressure. 
+
+SQLMAXMEMORY="2147483647"
+
+; Use SQLMINMEMORY to reserve a minimum amount of memory available to the SQL Server Memory Manager. 
+
+SQLMINMEMORY="0"
+
+
+-------------------end of config file-------------------------------
+
+
+
+  
+function Get-PendingRebootStatus {
+    [CmdletBinding(SupportsShouldProcess = $true)]
+    param()
+
+    process {
+        if (Get-Item -Path 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\WindowsUpdate\Auto Update\RebootRequired' -ErrorAction SilentlyContinue) { return $true }
+        if (Get-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager' -Name 'PendingFileRenameOperations' -ErrorAction SilentlyContinue) { return $true }
+        if (Get-ChildItem -Path 'HKLM:\Software\Microsoft\Windows\CurrentVersion\Component Based Servicing\RebootPending' -ErrorAction SilentlyContinue) { return $true }
+        if ((Get-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\ComputerName\ActiveComputerName').ComputerName -ne (Get-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\ComputerName\ComputerName').ComputerName) { return $true}
+
+        $Environment002 = Get-ItemProperty -Path 'HKLM:\SYSTEM\ControlSet002\Control\Session Manager\Environment' -ErrorAction SilentlyContinue | Select-Object -Property * -ExcludeProperty PSChildName, PSDrive, PSParentPath, PSPath, PSProvider
+        if ($Environment002 -ne $null) {
+            $Environment001 = Get-ItemProperty -Path 'HKLM:\SYSTEM\ControlSet001\Control\Session Manager\Environment' -ErrorAction SilentlyContinue | Select-Object -Property * -ExcludeProperty PSChildName, PSDrive, PSParentPath, PSPath, PSProvider
+            foreach ($property in $Environment001.PSObject.Properties.Name) {
+                if (Compare-Object -DifferenceObject $Environment002 -ReferenceObject $Environment001 -Property $property) { return $true }
+            }
+        }
+
+        $CCM_Client = Invoke-WmiMethod -Namespace 'ROOT\ccm\ClientSDK' -Class 'CCM_ClientUtilities' -Name 'DetermineIfRebootPending' -ErrorAction SilentlyContinue
+        if ($CCM_Client -ne $null -and ($CCM_Client.RebootPending -or $CCM_Client.IsHardRebootPending)) { return $true }
+
+        return $false
+    }
+}
+
+Get-PendingRebootStatus
+
+
+------------end of pending reboot status-------------------
+
+
+
+
+
+
+
+
