@@ -1,0 +1,6 @@
+---
+- name: Test the conection using ping
+  hosts: win9
+  tasks:
+    - name: ping the list of hosts
+      win_ping:
