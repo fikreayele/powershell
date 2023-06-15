@@ -1,0 +1,76 @@
+job("DBS_Seed_Jobs/FACETSDBS_Dsl") {
+
+    //
+    // Description
+    //
+    def sDescription = '''<br>
+<B>FACETSDBS_Dsl Job</B>
+'''
+
+    description(sDescription)
+
+    //
+    // logRotator
+    //
+    logRotator {
+        numToKeep(15)
+        //artifactNumToKeep(1)
+    }
+
+    //
+    // Git
+    //
+    scm {
+        git {
+            remote {
+                name('git.cambiahealth.com')
+                url('git@git.cambiahealth.com:dba/dbs-jenkins-seedjobs.git')
+                credentials('gitlab_sshkey')
+            }
+            branch('*/develop')
+        }
+    }
+
+    steps {
+        dsl {
+            external('facetsdbs/*.groovy')
+            external('facetsdbs/**/*.groovy')
+            removeAction('DISABLE')
+            ignoreExisting(false)
+        }
+    }
+
+    //
+    // SCM
+    //
+    triggers {
+        scm('H/5 * * * *') {
+            ignorePostCommitHooks(false)
+        }
+    }
+
+    //
+    // Wrappers
+    //
+    wrappers {
+
+        // Set jenkins user build variables
+        buildUserVars()
+    }
+
+    //
+    // Publishers
+    //
+    publishers {
+
+        def gpb = '''userid = manager.envVars['BUILD_USER']; manager.addShortText("Username: $userid")'''
+
+        //groovyPostBuild(gpb, Behavior.DoNothing)
+
+        groovyPostBuild {
+            behavior(Behavior.DoNothing)
+            sandbox(true)
+            script(gpb)
+        }
+    }
+}
