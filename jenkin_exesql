@@ -1,0 +1,377 @@
+freeStyleJob("FACETSDBS/FACETSDBS_Utils/FACETSDBS_ExeSql") {
+
+    //
+    // Description
+    //
+    def sDescription = '''FACETSDBS Execute SQL'''
+
+    description(sDescription)
+
+    //
+    // Allows Jenkins to schedule and execute multiple builds concurrently.
+    //
+    concurrentBuild()
+
+    //
+    // Parameters
+    //
+    parameters {
+
+	def envDesc = '''<b>Environment to update</b>'''
+
+	choiceParam('Environment', ['none', 'tst', 'dev', 'its', 'cfg', 'sys', 'fst', 'trn'], envDesc)
+
+        def sqlFolderDesc = '<b>SQL File Folder</b>'
+        choiceParam('SqlFolder', [
+                                 'none',
+                                 'sqlAllEnvs',
+                                 'sqlEnvSpec'
+                                 ], sqlFolderDesc)
+
+        def sqlFileDesc = '''<b>SQL File</b>'''
+
+        activeChoiceReactiveParam('SqlFile') {
+
+            description(sqlFileDesc)
+
+            choiceType('SINGLE_SELECT')
+
+            groovyScript {
+
+                script('''
+
+sqlallenvs = "sqlAllEnvs"
+sqlenvspec = "sqlEnvSpec"
+
+def sqlAllEnvsArr = [
+                      'none',
+                      'dbperm_save',
+                      'db_chaining_config',
+                      'db_owner_update',
+                      'dbperm_sync',
+                      'sqlcdc_config',
+                      'ephi_scrub_update',
+                      'ephi_scrub_validate',
+                      'ephi_view_refresh',
+                      'logspace_shrink',
+                      '01-create_a_table_and_sp__for_refresh',
+                      '02-update_list_of_table_that_need_a_backup',
+                      '03-backup_the_table_to_admin',
+                      '04-Restore_the_tables_from_admin',
+                      'AG_sync_Monitoring',
+                      'example'
+                      ]
+
+if (Environment.equals("dev")) {
+
+    if (SqlFolder.equals(sqlallenvs)) {
+
+        return sqlAllEnvsArr
+
+    } else if (SqlFolder.equals(sqlenvspec)) {
+        return [
+               "logspace_used_to_shrink4dev",
+               "ephi_view_refresh4dev",
+               "02-update_list_of_table_that_need_a_backup4dev",
+               "02-update_list_of_table_that_need_a_backup4dev_select",
+               "example4dev"
+               ]
+    } else {
+        return [ "none" ]
+    }
+
+} else if (Environment.equals("tst")) {
+
+    if (SqlFolder.equals(sqlallenvs)) {
+
+        return sqlAllEnvsArr
+
+    } else if (SqlFolder.equals(sqlenvspec)) {
+        return [
+               "ephi_view_refresh4tst",
+               "02-update_list_of_table_that_need_a_backup4tst",
+               "example4tst"
+               ]
+    } else {
+        return [ "none" ]
+    }
+
+} else if (Environment.equals("trn")) {
+
+    if (SqlFolder.equals(sqlallenvs)) {
+
+        return sqlAllEnvsArr
+
+    } else if (SqlFolder.equals(sqlenvspec)) {
+        return [
+               "logspace_used_to_shrink4trn",
+               "example4trn"
+               ]
+    } else {
+        return [ "none" ]
+    }
+
+} else if (Environment.equals("sys")) {
+
+    if (SqlFolder.equals(sqlallenvs)) {
+
+        return sqlAllEnvsArr
+
+    } else if (SqlFolder.equals(sqlenvspec)) {
+        return [
+               "logspace_used_to_shrink4sys",
+               "ephi_view_refresh4sys",
+               "02-update_list_of_table_that_need_a_backup4sys",
+               "example4sys"
+               ]
+    } else {
+        return [ "none" ]
+    }
+
+} else if (Environment.equals("its")) {
+
+    if (SqlFolder.equals(sqlallenvs)) {
+
+        return sqlAllEnvsArr
+
+    } else if (SqlFolder.equals(sqlenvspec)) {
+        return [
+               "logspace_used_to_shrink4its",
+               "ephi_view_refresh4its",
+               "02-update_list_of_table_that_need_a_backup4its",
+               "example4its"
+               ]
+    } else {
+        return [ "none" ]
+    }
+
+} else if (Environment.equals("cfg")) {
+
+    if (SqlFolder.equals(sqlallenvs)) {
+
+        return sqlAllEnvsArr
+
+    } else if (SqlFolder.equals(sqlenvspec)) {
+        return [
+               "none",
+               "truncatecdcqhistory4cfg",
+               "EPHIviewcreation4cfg",
+               "facetscdcenable4cfg"
+               ]
+
+    } else {
+
+        return [ "none" ]
+    }
+
+} else if (Environment.equals("fst")) {
+
+    if (SqlFolder.equals(sqlallenvs)) {
+
+        return sqlAllEnvsArr
+
+    } else if (SqlFolder.equals(sqlenvspec)) {
+        return [
+               "none",
+               "ephi_scrub_update4fst",
+               "ephi_scrub_validate4fst",
+               "ephi_view_refresh4fst",
+               "02-update_list_of_table_that_need_a_backup4fst",
+               "logspace_used_to_shrink4fst",
+               ]
+
+    } else {
+
+        return [ "none" ]
+    }
+} else {
+    return ["none"]
+}
+''')
+
+                fallbackScript('return [""]')
+            }
+            referencedParameter('Environment')
+            referencedParameter('SqlFolder')
+        }
+
+        def sqlTypeDesc = '''<b>SQL Type</b>'''
+        choiceParam('SqlType', [
+                               'none',
+                               'select',
+                               'update'
+                               ], sqlTypeDesc)
+
+        def dbsNodeDesc = '''<b>DBS Node</b>'''
+        choiceParam('DbsNode', [
+                               'all',
+                               'A',
+                               'B'
+                               ], dbsNodeDesc)
+
+        def useDBDesc = '''<b>Use DB</b>'''
+        activeChoiceReactiveParam('UseDB') {
+
+            description(useDBDesc)
+
+            choiceType('SINGLE_SELECT')
+
+            groovyScript {
+
+                script('''
+if (Environment.equals("dev")) {
+    return [
+           "none",
+           "admin",
+           "master",
+           "facdev1",
+           "facsys1",
+           "facdev1_p"
+           ]
+} else if (Environment.equals("tst")) {
+    return [
+           "none",
+           "admin",
+           "master"
+           ]
+} else if (Environment.equals("trn")) {
+    return [
+           "none",
+           "admin",
+           "master",
+           "factrn1"
+           ]
+} else if (Environment.equals("its")) {
+    return [
+           "none",
+           "admin",
+           "master",
+           "facits1"
+           ]
+} else if (Environment.equals("sys")) {
+    return [
+           "none",
+           "admin",
+           "master",
+           "facsys1",
+           "mapsys1"
+           ]
+} else if (Environment.equals("cfg")) {
+    return [
+           "none",
+           "master",
+           "faccfg1",
+           "mapcfg1",
+           "faccfg1_cdc"
+           ]
+} else {
+    return ["none"]
+}
+''')
+
+                fallbackScript('return [""]')
+            }
+            referencedParameter('Environment')
+        }
+
+	def updDesc = '<b>NoUpdate - dryrun option</b>'
+	booleanParam('NoUpdate', false, updDesc)
+    }
+
+    //
+    // Git
+    //
+    scm {
+        git {
+            remote {
+                name('git.cambiahealth.com')
+                url('git@git.cambiahealth.com:CCA/cca-dbs-utils.git')
+                credentials('gitlab_sshkey')
+            }
+            branch('*/develop')
+        }
+    }
+
+    //
+    // Wrappers
+    //
+    wrappers {
+
+	// Vault passwords
+        credentialsBinding {
+            file('CCA_DEV_VAULT_PASSWD', 'CCA_DEV_VAULT_PASSWD')
+            file('FACETS_DEV_VAULT_PASSWD', 'FACETS_DEV_VAULT_PASSWD')
+            file('FACETS_ITS_VAULT_PASSWD', 'FACETS_ITS_VAULT_PASSWD')
+            file('FACETS_CFG_VAULT_PASSWD', 'FACETS_CFG_VAULT_PASSWD')
+            file('FACETS_SYS_VAULT_PASSWD', 'FACETS_SYS_VAULT_PASSWD')
+            file('FACETS_TRN_VAULT_PASSWD', 'FACETS_TRN_VAULT_PASSWD')
+            file('FACETS_FST_VAULT_PASSWD', 'FACETS_FST_VAULT_PASSWD')
+        }
+
+	// Set jenkins user build variables
+	buildUserVars()
+
+        // Adds timestamps to the console log
+        timestamps()
+    }
+
+    //
+    // Steps
+    //
+    steps {
+
+        def Bash = '''
+echo "Pushing update to ${Environment} Environment"
+
+if [[ ${Environment} == "none" ]]; then
+    echo "ERROR: Environment was not selected"
+    exit 1;
+fi
+if [[ ${SqlFile} == "none" ]]; then
+    echo "ERROR: SqlFile was not selected"
+    exit 1;
+fi
+if [[ ${SqlType} == "none" ]]; then
+    echo "ERROR: SqlType was not selected"
+    exit 1;
+fi
+
+if [[ ${SqlFolder} == "none" ]]; then
+    echo "ERROR: SqlFolder was not selected"
+    exit 1;
+fi
+
+## Check Environment specific option
+if [ ${SqlFolder} == "sqlAllEnvs" ]; then
+    command="scripts/ccadbutils4dkr.sh -e ${Environment} -b fac -i ./facetsinv -u ${UseDB} -p dbsexesql -s ${SqlFile} -t ${SqlType} -w ${DbsNode}"
+elif [ ${SqlFolder} == "sqlEnvSpec" ]; then
+    command="scripts/ccadbutils4dkr.sh -e ${Environment} -b fac -i ./facetsinv -u ${UseDB} -p dbsexesql -s \"${Environment}/${SqlFile}\" -t ${SqlType} -w ${DbsNode}"
+fi
+
+## noupdate option
+if [ ${NoUpdate} == true ]; then
+    command="${command} --noupdate"
+fi
+
+## Log the AnsiblePlaybook Command
+echo ${command}
+
+##
+## Execute the AnsiblePlaybook Command
+##
+eval ${command}
+'''
+        shell(Bash)
+    }
+
+    //
+    // Publishers
+    //
+    publishers {
+
+	def gpb = '''userid =  manager.envVars['BUILD_USER'];
+manager.addShortText("Username: ${userid}; Environment: ${manager.build.buildVariables.get('Environment')}; UseDB: ${manager.build.buildVariables.get('UseDB')}; DbsNode: ${manager.build.buildVariables.get('DbsNode')}; SqlFile: ${manager.build.buildVariables.get('SqlFile')}; SqlType: ${manager.build.buildVariables.get('SqlType')}; NoUpdate(${manager.build.buildVariables.get('NoUpdate')})")'''
+
+        groovyPostBuild(gpb, Behavior.DoNothing)
+    }
+}
